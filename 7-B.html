@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <canvas id="cv" width="1080" height="720" style="background:#070147"></canvas>
+</head>
+
+<body>  
+</body>
+
+<script>
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+
+//オブジェクト
+const player = { x: 80, y: 500, w: 28, h: 36 };
+const floor  = { x: 0,  y: 620, w: 1080, h: 720 };
+const trap   = { x:1080, y:610, w:30, h:40};
+const trap2  = { x:1080, y:610, w:30, h:80};
+
+// ── 物理パラメータ ────────────────────────
+let vx = 0    // ★追加横方向の移動速度
+let vy = 0;
+let ty=0;     //トラップの速度
+let tx=-1;
+let score=0;
+const speed = 240;   // ★追加：地上での移動速度(px/s)
+const jump  = 700;   // ★追加：ジャンプ初速(px/s)
+const g     = 2000;  // 重力加速度(px/s^2)
+let isGrounded = false;
+let trapGround = false;
+
+const bounce = 0.45;    // ★追加：反発係数(0〜1)
+const impact = 250;     // ★追加：バウンドさせる最小落下速度
+
+friction = 0.88         // ★２ 追加：摩擦係数
+
+
+// ── 入力 ──────────────────────────────────
+const keys = {};
+addEventListener('keydown', e => keys[e.key] = true);   // ★追加：イベントリスナ、第2引数はアロー関数
+addEventListener('keyup',   e => keys[e.key] = false);  // ★追加：イベントリスナ、第２引数はアロー関数
+addEventListener('keydown', e=>{
+  // 地上にいるときだけジャンプ
+  if (e.code === 'Space' && isGrounded) vy = -jump;     // ★変更：パラメータを使用
+});
+
+
+// ── 衝突処理：床 ★変更：isGroundedの処理をここに移動───────
+function collideWithFloor(){
+  const bottom = player.y + player.h;
+  if (bottom > floor.y) {
+    player.y = floor.y - player.h;
+    if (Math.abs(vy) > impact) {      // ★追加：速度が一定以上ならば
+      vy = -vy * bounce; // ★追加：軽く跳ね返る
+      isGrounded = false;
+    } else {
+      vy = 0;
+      isGrounded = true;   // 着地
+    }
+  } else {
+    isGrounded = false;
+  }
+}
+
+function collideWithFloor2(){
+    const bottom = trap.y + trap.h;
+  if (bottom > floor.y) {
+    trap.y = floor.y - trap.h;
+    
+      ty = 0;
+      trapGround = true;   // 着地
+    }
+   else {
+    trapGround = false;
+  }
+}
+
+function collideWithFloor3(){
+    const bottom = trap2.y + trap2.h;
+  if (bottom > floor.y) {
+    trap2.y = floor.y - trap2.h;
+    
+      ty = 0;
+      trapGround = true;   // 着地
+    }
+   else {
+    trapGround = false;
+  }
+}
+
+// ── 当たり判定ユーティリティ（AABB） ──────
+function aabb(r1, r2) {
+  return (r1.x < r2.x + r2.w && r1.x + r1.w > r2.x &&
+          r1.y < r2.y + r2.h && r1.y + r1.h > r2.y);
+}
+
+
+function checkTrap() {
+  if (aabb(player, trap)) {
+    // 当たったら初期位置へ
+    player.x = 100;
+    player.y = 500;
+    vy = 0;
+    score=0;
+    trap.x=1080;
+  }
+  if(trap.x+28<0){
+    trap.x=1080;
+  }
+}
+
+function checkTrap2() {
+  if (aabb(player, trap2)) {
+    // 当たったら初期位置へ
+    player.x = 100;
+    player.y = 500;
+    vy = 0;
+    score=0;
+    trap2.x=1080;
+  }
+  if(trap2.x+28<0){
+    trap2.x=1080;
+  }
+}
+
+// ── 位置更新 ★追加：isGrounddedの更新処理を追加──────────────────────────────────
+function update(dt){
+  // 入力 → 水平方向速度（簡略：即時切替）
+  // vx = 0;                           // ★１ コメントアウトに変更
+  if (keys['ArrowLeft'])  vx = -speed;
+  else if (keys['ArrowRight']) vx =  speed; // ★３：else if に変更
+  else if (isGrounded) vx *= friction;      // ★３ 追加
+
+  player.x += vx * dt;
+  vy += g * dt;            // 重力で速度が増える
+  player.y += vy * dt;     // 位置更新
+
+  trap2.x +=-400*dt;
+  ty += g * dt;
+  trap2.y += ty * dt; 
+
+  
+
+  
+
+  
+  score+=1;
+
+
+  // 衝突判定（毎フレーム isGrounded をリセットしてから判定）
+  isGrounded = false;
+  trapGround = false;
+  collideWithFloor();
+  collideWithFloor2();
+  collideWithFloor3();
+  checkTrap();  
+  checkTrap2(); 
+}
+
+
+// ── 描画 ──────────────────────────────────
+function draw() {
+  ctx.clearRect(0,0,cv.width,cv.height);
+
+  // 床
+  ctx.fillStyle = '#203060';
+  ctx.fillRect(floor.x, floor.y, floor.w, floor.h);
+
+  // プレイヤー（地上:水色／空中:黄）
+  ctx.fillStyle = isGrounded ? '#7ef5e1' : '#ffd166';
+  ctx.fillRect(player.x, player.y, player.w, player.h);
+
+  
+
+  ctx.fillStyle='red'
+  ctx.fillRect(trap2.x, trap2.y, trap2.w, trap2.h);
+
+  // HUD
+  ctx.fillStyle = '#cbd5e1';
+  ctx.font = '12px ui-monospace,monospace';
+  ctx.fillText(`grounded=${isGrounded} score=${Math.ceil(score/10)}`, 8, 16);
+  
+}
+
+function drawTrap(){ctx.fillStyle='red';
+  ctx.fillRect(trap.x, trap.y, trap.w, trap.h);
+}
+
+
+
+// ── ループ ─────────────────────────────────
+let last = performance.now();
+function loop(now) {
+  const dt = (now - last) / 1000; last = now;
+
+  update(dt);
+  draw();
+  if(score>1000){
+    drawTrap();
+    trap.x+= Math.floor(Math.random() * -15) + 200 * dt;
+  }
+  if(score==0){
+    trap.x=1080;
+  }
+
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+
+</script>
